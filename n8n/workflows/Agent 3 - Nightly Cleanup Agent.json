@@ -1,0 +1,310 @@
+{
+  "name": "Agent 3 - Nightly Cleanup Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Cron Trigger (2am)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e5bae2f0-1a83-48b6-b5e4-dc1cc04b0aae"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simulate scanning Azure for unused resources\n// In production: call Azure Resource Graph REST API\n// GET https://management.azure.com/providers/Microsoft.ResourceGraph/resources\n\nconst unusedResources = [\n  {\n    id: '/subscriptions/xxx/resourceGroups/waresmedia-prod/providers/Microsoft.Compute/disks/old-disk-01',\n    name: 'old-disk-01',\n    type: 'Managed Disk',\n    sizeGB: 128,\n    monthlyCostUSD: 8.19,\n    lastUsed: '2024-09-12',\n    reason: 'Unattached for 60+ days'\n  },\n  {\n    id: '/subscriptions/xxx/resourceGroups/waresmedia-prod/providers/Microsoft.Compute/disks/backup-disk-old',\n    name: 'backup-disk-old',\n    type: 'Managed Disk',\n    sizeGB: 256,\n    monthlyCostUSD: 16.38,\n    lastUsed: '2024-08-01',\n    reason: 'Unattached for 90+ days'\n  },\n  {\n    id: '/subscriptions/xxx/resourceGroups/waresmedia-prod/providers/Microsoft.Compute/disks/test-disk-feb',\n    name: 'test-disk-feb',\n    type: 'Managed Disk',\n    sizeGB: 64,\n    monthlyCostUSD: 4.10,\n    lastUsed: '2024-02-14',\n    reason: 'Test disk, never attached to VM'\n  },\n  {\n    id: '/subscriptions/xxx/resourceGroups/waresmedia-prod/providers/Microsoft.Compute/snapshots/snap-2024-06',\n    name: 'snap-2024-06',\n    type: 'Snapshot',\n    sizeGB: 512,\n    monthlyCostUSD: 18.43,\n    lastUsed: '2024-06-15',\n    reason: 'Snapshot older than 90 days'\n  },\n  {\n    id: '/subscriptions/xxx/resourceGroups/waresmedia-prod/providers/Microsoft.Compute/snapshots/snap-2024-07',\n    name: 'snap-2024-07',\n    type: 'Snapshot',\n    sizeGB: 512,\n    monthlyCostUSD: 18.43,\n    lastUsed: '2024-07-01',\n    reason: 'Snapshot older than 90 days'\n  },\n  {\n    id: '/subscriptions/xxx/resourceGroups/waresmedia-dev/providers/Microsoft.Compute/snapshots/dev-snap-old',\n    name: 'dev-snap-old',\n    type: 'Snapshot',\n    sizeGB: 256,\n    monthlyCostUSD: 9.22,\n    lastUsed: '2024-05-20',\n    reason: 'Dev environment snapshot, stale'\n  },\n  {\n    id: '/subscriptions/xxx/resourceGroups/waresmedia-prod/providers/Microsoft.Network/publicIPAddresses/unused-ip-01',\n    name: 'unused-ip-01',\n    type: 'Public IP',\n    sizeGB: 0,\n    monthlyCostUSD: 3.65,\n    lastUsed: '2024-10-01',\n    reason: 'Not associated with any resource'\n  },\n  {\n    id: '/subscriptions/xxx/resourceGroups/waresmedia-prod/providers/Microsoft.Network/publicIPAddresses/unused-ip-02',\n    name: 'unused-ip-02',\n    type: 'Public IP',\n    sizeGB: 0,\n    monthlyCostUSD: 3.65,\n    lastUsed: '2024-09-15',\n    reason: 'Not associated with any resource'\n  },\n  {\n    id: '/subscriptions/xxx/resourceGroups/waresmedia-dev/providers/Microsoft.Storage/storageAccounts/devteststore2023',\n    name: 'devteststore2023',\n    type: 'Storage Account',\n    sizeGB: 50,\n    monthlyCostUSD: 1.02,\n    lastUsed: '2023-12-01',\n    reason: 'No activity in 6+ months'\n  }\n];\n\nconst totalCost = unusedResources.reduce((sum, r) => sum + r.monthlyCostUSD, 0).toFixed(2);\n\nreturn [{\n  json: {\n    scanTimestamp: new Date().toISOString(),\n    unusedResources,\n    totalCount: unusedResources.length,\n    totalMonthlyCostUSD: parseFloat(totalCost),\n    deleteAfter: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()\n  }\n}];"
+      },
+      "name": "Scan for Unused Resources",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "a28d6d6c-f91f-4ebf-8474-11ce8856116a"
+    },
+    {
+      "parameters": {
+        "functionCode": "const data = $input.first().json;\n\n// Format a clean report\nconst lines = data.unusedResources.map(r =>\n  `  • ${r.name} (${r.type}) — $${r.monthlyCostUSD}/mo — ${r.reason}`\n).join('\\n');\n\nconst report = {\n  agentId: 'nightly-cleanup',\n  agentName: 'Nightly Cleanup Agent',\n  timestamp: data.scanTimestamp,\n  resources: data.unusedResources,\n  totalCount: data.totalCount,\n  totalMonthlyCostUSD: data.totalMonthlyCostUSD,\n  deleteAfter: data.deleteAfter,\n  status: 'pending_deletion',\n  slackMessage: `🧹 *Nightly Cleanup Report* | ${new Date().toDateString()}\\n> Found *${data.totalCount} unused resources* totalling *$${data.totalMonthlyCostUSD}/month*\\n\\n${lines}\\n\\n> ⏰ Will auto-delete in *24 hours* unless you reply SKIP or approve on the dashboard.`\n};\n\nreturn [{ json: report }];"
+      },
+      "name": "Format Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "3e3c3ce6-1832-45d0-bb03-7ea7176a1586"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Cron: 24h later check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        272
+      ],
+      "id": "8522b0ce-5f51-4818-8529-c787318aac21"
+    },
+    {
+      "parameters": {
+        "functionCode": "// In production: fetch yesterday's cleanup blob and check if SKIP was sent\n// For demo: simulate auto-deletion\n\nconst yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];\n\n// Simulate: no SKIP received, proceed with deletion\nconst deletedResources = [\n  { name: 'old-disk-01', type: 'Managed Disk', savedPerMonth: 8.19 },\n  { name: 'backup-disk-old', type: 'Managed Disk', savedPerMonth: 16.38 },\n  { name: 'snap-2024-06', type: 'Snapshot', savedPerMonth: 18.43 },\n  { name: 'unused-ip-01', type: 'Public IP', savedPerMonth: 3.65 }\n];\n\nconst totalSaved = deletedResources.reduce((s, r) => s + r.savedPerMonth, 0).toFixed(2);\n\nreturn [{\n  json: {\n    deletedAt: new Date().toISOString(),\n    deletedResources,\n    totalDeleted: deletedResources.length,\n    monthlySavings: parseFloat(totalSaved),\n    slackMessage: `✅ *Cleanup complete* | Deleted ${deletedResources.length} resources\\n> Monthly savings: *$${totalSaved}*\\n> Resources: ${deletedResources.map(r => r.name).join(', ')}`\n  }\n}];"
+      },
+      "name": "Execute Deletions",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        224,
+        272
+      ],
+      "id": "6eb07e8c-211a-49a5-8ffc-17513fb3dd62"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://cloudopsstoragepp.blob.core.windows.net/agent-events/cleanup-{{$now.toFormat('yyyy-MM-dd-HH-mm-ss')}}.json?sv=2026-02-06&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2026-05-23T05:03:57Z&st=2026-05-20T20:48:57Z&spr=https,http&sig=4EAT1ZgOa4iC0Wa120POAclMoOWeDEttGjh2qRmWyJ0%3D",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-ms-blob-type",
+              "value": "BlockBlob"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "name": "Write Approval to Blob",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        672,
+        0
+      ],
+      "id": "a2eb2194-0e20-4298-9894-ace034df4c33",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.slackMessage }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1376,
+        0
+      ],
+      "id": "222e1de8-8dee-4f77-a43e-8bd7755fde42",
+      "name": "Slack message1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        -192
+      ],
+      "id": "de380d9d-5ec5-47ed-bbda-485c52655eb5",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d919d9cf-6288-420d-9e0b-75d3b47d0c10",
+              "name": "slackMessage",
+              "value": "={{ $('Format Report').first().json.slackMessage }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1152,
+        0
+      ],
+      "id": "951d26dd-7d13-4b44-af2b-5edf4e1f2aee",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.slackMessage }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        272
+      ],
+      "id": "e610e667-f413-468c-88bb-ae994fc4af0f",
+      "name": "Slack message"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cron Trigger (2am)": {
+      "main": [
+        [
+          {
+            "node": "Scan for Unused Resources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan for Unused Resources": {
+      "main": [
+        [
+          {
+            "node": "Format Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Report": {
+      "main": [
+        [
+          {
+            "node": "Write Approval to Blob",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron: 24h later check": {
+      "main": [
+        [
+          {
+            "node": "Execute Deletions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Deletions": {
+      "main": [
+        [
+          {
+            "node": "Slack message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Approval to Blob": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Slack message1": {
+      "main": [
+        []
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Slack message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "042e7e32-828f-4b82-a730-80011b6821d1",
+  "meta": {
+    "instanceId": "9816db8c7bb63753cd92f15fd9f3f60aee53bf1f543678b270324b31d7b5d897"
+  },
+  "id": "bA5OH61lP2GPNhn4",
+  "tags": []
+}

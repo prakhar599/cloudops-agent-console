@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CloudOps Agent Console — Waresmedia</title>
+<style>
+  :root {
+    --bg: #f5f5f3;
+    --bg2: #ffffff;
+    --bg3: #f0ede6;
+    --text: #1a1a18;
+    --text2: #6b6b67;
+    --text3: #9b9b96;
+    --border: rgba(0,0,0,0.10);
+    --border2: rgba(0,0,0,0.18);
+    --teal: #0f6e56; --teal-bg: #e1f5ee; --teal-mid: #1d9e75;
+    --blue: #185fa5; --blue-bg: #e6f1fb; --blue-mid: #378add;
+    --amber: #854f0b; --amber-bg: #faeeda; --amber-mid: #ef9f27;
+    --purple: #3c3489; --purple-bg: #eeedfe; --purple-mid: #7f77dd;
+    --red: #a32d2d; --red-bg: #fcebeb;
+    --radius: 10px; --radius-sm: 6px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'SF Mono', 'Fira Code', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --bg2: #242422; --bg3: #2c2c2a;
+      --text: #e8e6df; --text2: #a0a09a; --text3: #6b6b67;
+      --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.15);
+      --teal-bg: #04342c; --blue-bg: #042c53; --amber-bg: #412402;
+      --purple-bg: #26215c; --red-bg: #501313;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
+
+  /* Layout */
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .main { flex: 1; padding: 28px 32px; max-width: 1100px; }
+
+  /* Sidebar */
+  .logo { padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  .logo-name { font-size: 14px; font-weight: 600; color: var(--text); }
+  .logo-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; cursor: pointer; color: var(--text2); font-size: 13px; transition: all 0.15s; border-left: 2px solid transparent; }
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: var(--teal-bg); color: var(--teal); border-left-color: var(--teal-mid); font-weight: 500; }
+  .nav-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .nav-section { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; padding: 16px 20px 6px; }
+
+  /* Top bar */
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .page-title { font-size: 18px; font-weight: 600; }
+  .page-sub { font-size: 13px; color: var(--text2); margin-top: 2px; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .btn { padding: 7px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 12px; cursor: pointer; transition: all 0.15s; font-family: var(--font); }
+  .btn:hover { background: var(--bg3); }
+  .btn-primary { background: var(--teal-mid); border-color: var(--teal-mid); color: #fff; }
+  .btn-primary:hover { background: var(--teal); border-color: var(--teal); }
+  .btn-blue { background: var(--blue-mid); border-color: var(--blue-mid); color: #fff; }
+  .btn-blue:hover { background: var(--blue); }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+  .btn-danger { background: var(--red-bg); border-color: #f09595; color: var(--red); }
+
+  /* Status indicator */
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal-mid); display: inline-block; animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Metrics row */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .metric { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .metric-label { font-size: 11px; color: var(--text2); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .metric-val { font-size: 26px; font-weight: 600; }
+  .metric-change { font-size: 11px; margin-top: 4px; }
+  .up { color: var(--teal-mid); }
+  .warn { color: var(--amber-mid); }
+
+  /* Section */
+  .section { margin-bottom: 28px; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .section-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* Agent cards */
+  .agents { display: flex; flex-direction: column; gap: 10px; }
+  .agent-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .agent-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .agent-icon { width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .agent-info { flex: 1; }
+  .agent-name { font-size: 14px; font-weight: 600; }
+  .agent-desc { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .status-badge { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 99px; }
+  .badge-teal { background: var(--teal-bg); color: var(--teal); }
+  .badge-blue { background: var(--blue-bg); color: var(--blue); }
+  .badge-amber { background: var(--amber-bg); color: var(--amber); }
+  .badge-purple { background: var(--purple-bg); color: var(--purple); }
+  .agent-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .meta { background: var(--bg3); border-radius: var(--radius-sm); padding: 8px 10px; }
+  .meta-k { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; }
+  .meta-v { font-size: 13px; font-weight: 500; margin-top: 3px; }
+
+  /* Two column layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+
+  /* Log feed */
+  .log-feed { display: flex; flex-direction: column; gap: 0; }
+  .log-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .log-item:last-child { border-bottom: none; }
+  .log-time { font-size: 11px; color: var(--text3); min-width: 42px; font-family: var(--mono); padding-top: 2px; }
+  .log-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .log-body { flex: 1; }
+  .log-title { font-size: 13px; font-weight: 500; line-height: 1.4; }
+  .log-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .tag { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 99px; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tag-success { background: var(--teal-bg); color: var(--teal); }
+  .tag-pending { background: var(--amber-bg); color: var(--amber); }
+  .tag-info { background: var(--blue-bg); color: var(--blue); }
+
+  /* Approval panel */
+  .approval-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .approval-item:last-child { border-bottom: none; }
+  .approval-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .approval-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; }
+  .approval-val { font-size: 13px; font-weight: 500; margin-top: 2px; }
+  .approval-sub { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  .approval-actions { display: flex; gap: 6px; margin-top: 8px; }
+
+  /* Terraform viewer */
+  .tf-code { background: #1e1e1e; color: #d4d4d4; font-family: var(--mono); font-size: 11px; border-radius: var(--radius-sm); padding: 12px; line-height: 1.6; overflow-x: auto; margin-top: 8px; max-height: 200px; overflow-y: auto; }
+  .tf-keyword { color: #569cd6; }
+  .tf-string { color: #ce9178; }
+  .tf-comment { color: #6a9955; }
+
+  /* Trigger panel */
+  .trigger-form { display: flex; flex-direction: column; gap: 10px; }
+  .form-group label { display: block; font-size: 11px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+  .form-group input, .form-group select { width: 100%; padding: 8px 10px; border: 1px solid var(--border2); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--teal-mid); }
+
+  /* Toast */
+  #toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 18px; background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius); font-size: 13px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); transform: translateY(80px); opacity: 0; transition: all 0.3s; z-index: 100; }
+  #toast.show { transform: translateY(0); opacity: 1; }
+
+  /* Config overlay */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--bg2); border-radius: var(--radius); padding: 24px; width: 480px; max-width: 95vw; }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 32px; color: var(--text3); font-size: 13px; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border2); border-top-color: var(--teal-mid); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 900px) {
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .two-col { grid-template-columns: 1fr; }
+    .agent-meta { grid-template-columns: repeat(2, 1fr); }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="config-overlay" class="overlay">
+  <div class="modal">
+    <div class="modal-title">⚙️ Connect your backend</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;">Enter your Azure + n8n details. Saved to browser only.</p>
+    <div class="trigger-form">
+      <div class="form-group"><label>n8n base URL</label><input id="cfg-n8n" placeholder="http://YOUR_VM_IP:5678" /></div>
+      <div class="form-group"><label>Azure Blob Storage URL</label><input id="cfg-blob" placeholder="https://waresmediaops.blob.core.windows.net/agent-logs" /></div>
+      <div class="form-group"><label>Azure Blob SAS Token</label><input id="cfg-sas" placeholder="?sv=2022-11-02&ss=b&..." /></div>
+      <div class="form-group"><label>Slack Webhook URL (optional)</label><input id="cfg-slack" placeholder="https://hooks.slack.com/services/..." /></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeConfig()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveConfig()">Save & Connect</button>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="logo">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span class="live-dot"></span>
+        <span class="logo-name">CloudOps Console</span>
+      </div>
+      <div class="logo-sub">Waresmedia · Ad-Tech Infra</div>
+    </div>
+    <div class="nav-section">Agents</div>
+    <div class="nav-item active" onclick="setPage('dashboard')"><span class="nav-dot" style="background:var(--teal-mid)"></span>Dashboard</div>
+    <div class="nav-item" onclick="setPage('cpu')"><span class="nav-dot" style="background:var(--teal-mid)"></span>CPU Triage</div>
+    <div class="nav-item" onclick="setPage('iac')"><span class="nav-dot" style="background:var(--blue-mid)"></span>IaC Generator</div>
+    <div class="nav-item" onclick="setPage('cleanup')"><span class="nav-dot" style="background:var(--amber-mid)"></span>Nightly Cleanup</div>
+    <div class="nav-section">System</div>
+    <div class="nav-item" onclick="setPage('trigger')">🔧 Trigger Agent</div>
+    <div class="nav-item" onclick="openConfig()">⚙️ Settings</div>
+  </aside>
+
+  <main class="main" id="main-content">
+    <!-- Content injected by JS -->
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── Config ───────────────────────────────────────────────
+let config = {
+  n8nUrl: localStorage.getItem('n8n_url') || '',
+  blobUrl: localStorage.getItem('blob_url') || '',
+  sasToken: localStorage.getItem('sas_token') || '',
+  slackUrl: localStorage.getItem('slack_url') || ''
+};
+
+function saveConfig() {
+  config.n8nUrl = document.getElementById('cfg-n8n').value.trim();
+  config.blobUrl = document.getElementById('cfg-blob').value.trim();
+  config.sasToken = document.getElementById('cfg-sas').value.trim();
+  config.slackUrl = document.getElementById('cfg-slack').value.trim();
+  localStorage.setItem('n8n_url', config.n8nUrl);
+  localStorage.setItem('blob_url', config.blobUrl);
+  localStorage.setItem('sas_token', config.sasToken);
+  localStorage.setItem('slack_url', config.slackUrl);
+  closeConfig();
+  showToast('✅ Config saved — backend connected');
+  render();
+}
+
+function openConfig() {
+  document.getElementById('cfg-n8n').value = config.n8nUrl;
+  document.getElementById('cfg-blob').value = config.blobUrl;
+  document.getElementById('cfg-sas').value = config.sasToken;
+  document.getElementById('cfg-slack').value = config.slackUrl;
+  document.getElementById('config-overlay').classList.add('open');
+}
+function closeConfig() { document.getElementById('config-overlay').classList.remove('open'); }
+
+// ─── Toast ────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ─── Mock data (shown when no blob URL set) ───────────────
+const mockLogs = [
+  { time: '08:03', dot: 'var(--teal-mid)', title: '⚡ CPU alert on ad-srv-07 (94%)', sub: 'OOM in bidder-service. Auto-restarted. CPU → 38%.', tag: 'auto-resolved', tagClass: 'tag-success' },
+  { time: '07:21', dot: 'var(--blue-mid)', title: '📋 IaC: JIRA-482 — New PostgreSQL DB', sub: 'Terraform generated. Awaiting approval.', tag: 'pending approval', tagClass: 'tag-pending' },
+  { time: '02:01', dot: 'var(--amber-mid)', title: '🧹 Nightly cleanup: 9 resources found', sub: '$340/mo savings. Auto-deletion in 21h.', tag: 'pending deletion', tagClass: 'tag-pending' },
+  { time: 'yest', dot: 'var(--teal-mid)', title: '⚡ CPU alert on ad-srv-03 (91%)', sub: 'Auto-restarted. No human intervention needed.', tag: 'auto-resolved', tagClass: 'tag-success' },
+  { time: 'yest', dot: 'var(--blue-mid)', title: '📋 IaC: JIRA-479 — S3 policy update', sub: 'Applied after Prakhar approved.', tag: 'applied', tagClass: 'tag-success' }
+];
+
+const mockApprovals = [
+  {
+    id: 'approval-JIRA-482',
+    ticketId: 'JIRA-482',
+    ticketTitle: 'New PostgreSQL DB for ad-analytics',
+    resourceType: 'postgresql',
+    requestedBy: 'prakhar',
+    status: 'pending',
+    planOutput: `Plan: 2 to add, 0 to change, 0 to destroy.\n  + azurerm_postgresql_flexible_server.main\n  + azurerm_postgresql_flexible_server_database.main`,
+    terraform: `resource "azurerm_postgresql_flexible_server" "main" {\n  name     = "waresmedia-psql-jira-482"\n  location = "Central India"\n  sku_name = "B_Standard_B1ms"\n  version  = "14"\n  storage_mb = 32768\n}`
+  },
+  {
+    id: 'approval-JIRA-479',
+    ticketId: 'JIRA-479',
+    ticketTitle: 'S3 bucket policy update — ad-creatives',
+    resourceType: 'storage',
+    requestedBy: 'prakhar',
+    status: 'pending',
+    planOutput: `Plan: 0 to add, 1 to change, 0 to destroy.\n  ~ azurerm_storage_account.ad_creatives (policy update)`,
+    terraform: `resource "azurerm_storage_account" "ad_creatives" {\n  name = "waresmediaadcreatives"\n  # policy updated to restrict public access\n}`
+  }
+];
+
+// Track locally approved items in this session
+const approved = new Set();
+
+// ─── Blob fetch ───────────────────────────────────────────
+async function fetchBlob(filename) {
+  if (!config.blobUrl || !config.sasToken) return null;
+  try {
+    const url = `${config.blobUrl}/${filename}${config.sasToken}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+async function fetchBlobList() {
+  if (!config.blobUrl || !config.sasToken) return [];
+  try {
+    const url = `${config.blobUrl}${config.sasToken}&restype=container&comp=list`;
+    const res = await fetch(url);
+    const text = await res.text();
+    const names = [...text.matchAll(/<Name>([^<]+)<\/Name>/g)].map(m => m[1]);
+    return names;
+  } catch { return []; }
+}
+
+// ─── n8n trigger ─────────────────────────────────────────
+async function triggerAgent(agentPath, payload) {
+  if (!config.n8nUrl) {
+    showToast('⚠️ Set n8n URL in Settings first');
+    return false;
+  }
+  try {
+    const url = `${config.n8nUrl}/webhook/${agentPath}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return res.ok;
+  } catch {
+    showToast('❌ Could not reach n8n — check URL and port');
+    return false;
+  }
+}
+
+// ─── Pages ────────────────────────────────────────────────
+let currentPage = 'dashboard';
+
+function setPage(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  event && event.target && event.target.closest('.nav-item') && event.target.closest('.nav-item').classList.add('active');
+  render();
+}
+
+function render() {
+  const main = document.getElementById('main-content');
+  if (currentPage === 'dashboard') main.innerHTML = renderDashboard();
+  else if (currentPage === 'cpu') main.innerHTML = renderCPUPage();
+  else if (currentPage === 'iac') main.innerHTML = renderIaCPage();
+  else if (currentPage === 'cleanup') main.innerHTML = renderCleanupPage();
+  else if (currentPage === 'trigger') main.innerHTML = renderTriggerPage();
+  bindEvents();
+}
+
+// ─── Dashboard page ───────────────────────────────────────
+function renderDashboard() {
+  const connected = !!(config.n8nUrl && config.blobUrl);
+  const pendingCount = mockApprovals.filter(a => !approved.has(a.id)).length;
+  return `
+  <div class="topbar">
+    <div>
+      <div class="page-title">Agent Dashboard</div>
+      <div class="page-sub"><span class="live-dot" style="display:inline-block;margin-right:6px;"></span>${connected ? 'Connected to n8n + Azure Blob' : 'Demo mode — <a href="#" onclick="openConfig();return false;" style="color:var(--teal-mid)">connect your backend</a>'}</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn" onclick="openConfig()">⚙️ Settings</button>
+      <button class="btn btn-primary" onclick="setPage('trigger')">+ Trigger Agent</button>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Agents Running</div>
+      <div class="metric-val" style="color:var(--teal-mid)">3</div>
+      <div class="metric-change up">↑ All healthy</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Auto-resolved (24h)</div>
+      <div class="metric-val">14</div>
+      <div class="metric-change up">↑ 82% auto-fix rate</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Cost Saved / mo</div>
+      <div class="metric-val" style="color:var(--teal-mid)">$340</div>
+      <div class="metric-change up">↑ Via cleanup agent</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Pending Approvals</div>
+      <div class="metric-val" style="color:var(--amber-mid)">${pendingCount}</div>
+      <div class="metric-change warn">⚑ Needs review</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><div class="section-title">Active Agents</div></div>
+    <div class="agents">
+      <div class="agent-card">
+        <div class="agent-head">
+          <div class="agent-icon" style="background:var(--teal-bg)">⚡</div>
+          <div class="agent-info"><div class="agent-name">CPU Alert Triage Agent</div><div class="agent-desc">Azure Monitor webhook → log pull → diagnose → auto-restart → Slack</div></div>
+          <span class="status-badge badge-teal"><span class="live-dot" style="width:6px;height:6px"></span>running</span>
+        </div>
+        <div class="agent-meta">
+          <div class="meta"><div class="meta-k">Trigger</div><div class="meta-v">Azure Monitor webhook</div></div>
+          <div class="meta"><div class="meta-k">Last run</div><div class="meta-v">8 min ago</div></div>
+          <div class="meta"><div class="meta-k">Auto-resolved</div><div class="meta-v">11 / 14</div></div>
+          <div class="meta"><div class="meta-k">n8n endpoint</div><div class="meta-v">/webhook/cpu-alert</div></div>
+        </div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-head">
+          <div class="agent-icon" style="background:var(--blue-bg)">📋</div>
+          <div class="agent-info"><div class="agent-name">IaC Generation Agent</div><div class="agent-desc">GitHub Issue / Jira ticket → Terraform → plan check → Blob → approval → apply</div></div>
+          <span class="status-badge badge-blue">awaiting approval</span>
+        </div>
+        <div class="agent-meta">
+          <div class="meta"><div class="meta-k">Trigger</div><div class="meta-v">Webhook (GitHub/Jira)</div></div>
+          <div class="meta"><div class="meta-k">Last run</div><div class="meta-v">42 min ago</div></div>
+          <div class="meta"><div class="meta-k">Pending PRs</div><div class="meta-v">${pendingCount}</div></div>
+          <div class="meta"><div class="meta-k">n8n endpoint</div><div class="meta-v">/webhook/iac-request</div></div>
+        </div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-head">
+          <div class="agent-icon" style="background:var(--amber-bg)">🧹</div>
+          <div class="agent-info"><div class="agent-name">Nightly Cleanup Agent</div><div class="agent-desc">Cron 2am → scan unused Azure resources → report → 24h wait → auto-delete</div></div>
+          <span class="status-badge badge-amber">scheduled 02:00</span>
+        </div>
+        <div class="agent-meta">
+          <div class="meta"><div class="meta-k">Trigger</div><div class="meta-v">cron 0 2 * * *</div></div>
+          <div class="meta"><div class="meta-k">Last run</div><div class="meta-v">last night</div></div>
+          <div class="meta"><div class="meta-k">Flagged</div><div class="meta-v">9 resources</div></div>
+          <div class="meta"><div class="meta-k">n8n endpoint</div><div class="meta-v">cron (internal)</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="panel">
+      <div class="section-head"><div class="section-title">Recent Activity</div></div>
+      <div class="log-feed">
+        ${mockLogs.map(l => `
+        <div class="log-item">
+          <div class="log-time">${l.time}</div>
+          <div class="log-dot" style="background:${l.dot}"></div>
+          <div class="log-body">
+            <div class="log-title">${l.title}</div>
+            <div class="log-sub">${l.sub}</div>
+            <span class="tag ${l.tagClass}">${l.tag}</span>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="section-head"><div class="section-title">Pending Approvals</div><button class="btn btn-sm btn-blue" onclick="setPage('iac')">View all</button></div>
+      ${mockApprovals.filter(a => !approved.has(a.id)).map(a => `
+      <div class="approval-item">
+        <div class="approval-row">
+          <div>
+            <div class="approval-label">${a.ticketId} · ${a.resourceType}</div>
+            <div class="approval-val">${a.ticketTitle}</div>
+            <div class="approval-sub">Requested by ${a.requestedBy}</div>
+          </div>
+        </div>
+        <div class="approval-actions">
+          <button class="btn btn-sm btn-primary" onclick="approveIaC('${a.id}', '${a.ticketId}')">✓ Approve</button>
+          <button class="btn btn-sm btn-danger" onclick="rejectIaC('${a.id}')">✗ Reject</button>
+        </div>
+      </div>`).join('') || '<div class="empty">All clear — no pending approvals</div>'}
+    </div>
+  </div>`;
+}
+
+// ─── CPU page ─────────────────────────────────────────────
+function renderCPUPage() {
+  return `
+  <div class="topbar">
+    <div><div class="page-title">CPU Alert Triage Agent</div><div class="page-sub">Webhook → logs → diagnose → auto-restart → Slack</div></div>
+    <button class="btn btn-primary" onclick="triggerCPU()">▶ Trigger Test Alert</button>
+  </div>
+  <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
+    <div class="metric"><div class="metric-label">Alerts today</div><div class="metric-val">14</div></div>
+    <div class="metric"><div class="metric-label">Auto-resolved</div><div class="metric-val" style="color:var(--teal-mid)">11</div><div class="metric-change up">78% auto-fix rate</div></div>
+    <div class="metric"><div class="metric-label">Escalated</div><div class="metric-val" style="color:var(--amber-mid)">3</div><div class="metric-change warn">Needed human</div></div>
+  </div>
+  <div class="section">
+    <div class="section-title" style="margin-bottom:12px">How the agent works</div>
+    <div class="panel" style="font-size:13px;color:var(--text2);line-height:1.8">
+      <ol style="padding-left:18px">
+        <li>Azure Monitor fires a webhook to <code style="background:var(--bg3);padding:1px 5px;border-radius:4px">${config.n8nUrl || 'http://YOUR_VM_IP:5678'}/webhook/cpu-alert</code></li>
+        <li>n8n workflow receives the payload (server name, CPU %, alert type)</li>
+        <li>Fetches Azure Log Analytics for the last 5 min of logs from that server</li>
+        <li>Analyses top processes — checks if it's an OOM or runaway process</li>
+        <li>If CPU &lt; 99% and cause is identifiable → auto-restarts the service via Azure Run Command</li>
+        <li>If unsafe → escalates to Slack with a flag</li>
+        <li>Posts a Slack summary either way, and writes an event log to Azure Blob</li>
+        <li>Dashboard reads the Blob log and shows the result here</li>
+      </ol>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="section-head"><div class="section-title">Recent executions</div></div>
+    <div class="log-feed">
+      ${mockLogs.filter(l => l.title.includes('CPU')).map(l => `
+      <div class="log-item">
+        <div class="log-time">${l.time}</div>
+        <div class="log-dot" style="background:${l.dot}"></div>
+        <div class="log-body">
+          <div class="log-title">${l.title}</div>
+          <div class="log-sub">${l.sub}</div>
+          <span class="tag ${l.tagClass}">${l.tag}</span>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ─── IaC page ─────────────────────────────────────────────
+function renderIaCPage() {
+  const pending = mockApprovals.filter(a => !approved.has(a.id));
+  return `
+  <div class="topbar">
+    <div><div class="page-title">IaC Generation Agent</div><div class="page-sub">Ticket → Terraform → plan check → human approval → apply</div></div>
+    <button class="btn btn-primary" onclick="triggerIaC()">▶ Simulate New Ticket</button>
+  </div>
+  <div class="section">
+    <div class="section-title" style="margin-bottom:12px">Pending Approvals (${pending.length})</div>
+    ${pending.map(a => `
+    <div class="panel" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em">${a.ticketId} · ${a.resourceType}</div>
+          <div style="font-size:15px;font-weight:600;margin-top:3px">${a.ticketTitle}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Requested by ${a.requestedBy}</div>
+        </div>
+        <span class="status-badge badge-amber">pending</span>
+      </div>
+      <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px">Terraform plan:</div>
+      <div class="tf-code">${a.planOutput}</div>
+      <div style="font-size:12px;font-weight:500;color:var(--text2);margin:10px 0 6px">Generated Terraform:</div>
+      <div class="tf-code">${a.terraform.replace(/resource/g,'<span class="tf-keyword">resource</span>').replace(/"[^"]+"/g, s => '<span class="tf-string">'+s+'</span>').replace(/#.*/g, s => '<span class="tf-comment">'+s+'</span>')}</div>
+      <div class="approval-actions" style="margin-top:12px">
+        <button class="btn btn-primary" onclick="approveIaC('${a.id}','${a.ticketId}')">✓ Approve & Apply</button>
+        <button class="btn btn-danger" onclick="rejectIaC('${a.id}')">✗ Reject</button>
+      </div>
+    </div>`).join('') || '<div class="panel"><div class="empty">No pending approvals 🎉</div></div>'}`;
+}
+
+// ─── Cleanup page ─────────────────────────────────────────
+function renderCleanupPage() {
+  const resources = [
+    { name: 'old-disk-01', type: 'Managed Disk', cost: 8.19, reason: 'Unattached 60+ days' },
+    { name: 'backup-disk-old', type: 'Managed Disk', cost: 16.38, reason: 'Unattached 90+ days' },
+    { name: 'test-disk-feb', type: 'Managed Disk', cost: 4.10, reason: 'Test disk, never used' },
+    { name: 'snap-2024-06', type: 'Snapshot', cost: 18.43, reason: 'Older than 90 days' },
+    { name: 'snap-2024-07', type: 'Snapshot', cost: 18.43, reason: 'Older than 90 days' },
+    { name: 'dev-snap-old', type: 'Snapshot', cost: 9.22, reason: 'Dev snapshot, stale' },
+    { name: 'unused-ip-01', type: 'Public IP', cost: 3.65, reason: 'Not associated' },
+    { name: 'unused-ip-02', type: 'Public IP', cost: 3.65, reason: 'Not associated' },
+    { name: 'devteststore2023', type: 'Storage Account', cost: 1.02, reason: 'No activity 6+ months' }
+  ];
+  const total = resources.reduce((s, r) => s + r.cost, 0).toFixed(2);
+  return `
+  <div class="topbar">
+    <div><div class="page-title">Nightly Cleanup Agent</div><div class="page-sub">Runs at 2am · scans unused Azure resources · reports · auto-deletes after 24h</div></div>
+    <button class="btn btn-primary" onclick="triggerCleanup()">▶ Run Scan Now</button>
+  </div>
+  <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
+    <div class="metric"><div class="metric-label">Resources flagged</div><div class="metric-val" style="color:var(--amber-mid)">9</div></div>
+    <div class="metric"><div class="metric-label">Monthly waste</div><div class="metric-val" style="color:var(--red)">$${total}</div></div>
+    <div class="metric"><div class="metric-label">Auto-deletion in</div><div class="metric-val">21h</div><div class="metric-change warn">Reply SKIP to cancel</div></div>
+  </div>
+  <div class="panel">
+    <div class="section-head"><div class="section-title">Flagged resources (last scan — 02:01)</div><button class="btn btn-sm btn-danger" onclick="showToast('SKIP sent — deletion cancelled for today')">Send SKIP</button></div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:8px 0;color:var(--text2);font-weight:500">Resource</th>
+        <th style="text-align:left;padding:8px 0;color:var(--text2);font-weight:500">Type</th>
+        <th style="text-align:left;padding:8px 0;color:var(--text2);font-weight:500">Reason</th>
+        <th style="text-align:right;padding:8px 0;color:var(--text2);font-weight:500">Cost/mo</th>
+      </tr></thead>
+      <tbody>${resources.map(r => `
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:9px 0;font-family:var(--mono);font-size:12px">${r.name}</td>
+          <td style="padding:9px 0"><span class="tag tag-pending" style="text-transform:none">${r.type}</span></td>
+          <td style="padding:9px 0;color:var(--text2)">${r.reason}</td>
+          <td style="padding:9px 0;text-align:right;color:var(--red);font-weight:500">$${r.cost}</td>
+        </tr>`).join('')}
+        <tr><td colspan="3" style="padding:10px 0;font-weight:600">Total</td><td style="padding:10px 0;text-align:right;font-weight:600;color:var(--red)">$${total}/mo</td></tr>
+      </tbody>
+    </table>
+  </div>`;
+}
+
+// ─── Trigger page ─────────────────────────────────────────
+function renderTriggerPage() {
+  return `
+  <div class="topbar">
+    <div><div class="page-title">Trigger an Agent</div><div class="page-sub">Fire any agent manually — useful for demos and testing</div></div>
+  </div>
+  <div class="two-col">
+    <div class="panel">
+      <div class="section-title" style="margin-bottom:14px">⚡ CPU Alert Simulation</div>
+      <div class="trigger-form">
+        <div class="form-group"><label>Server Name</label><input id="t-server" value="ad-srv-07" /></div>
+        <div class="form-group"><label>CPU %</label><input id="t-cpu" type="number" value="94" min="1" max="100" /></div>
+        <button class="btn btn-primary" style="margin-top:4px" onclick="triggerCPU()">▶ Fire CPU Alert</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="section-title" style="margin-bottom:14px">📋 IaC Ticket Simulation</div>
+      <div class="trigger-form">
+        <div class="form-group"><label>Ticket ID</label><input id="t-ticket" value="JIRA-490" /></div>
+        <div class="form-group"><label>Title</label><input id="t-title" value="New PostgreSQL DB for ad-analytics" /></div>
+        <div class="form-group"><label>Requested by</label><input id="t-by" value="prakhar" /></div>
+        <button class="btn btn-blue" style="margin-top:4px" onclick="triggerIaC()">▶ Submit IaC Ticket</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <div class="section-title" style="margin-bottom:14px">🧹 Manual Cleanup Scan</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Normally runs at 2am via cron. Click to trigger a scan immediately for demo purposes.</p>
+    <button class="btn btn-primary" onclick="triggerCleanup()">▶ Run Cleanup Scan Now</button>
+  </div>`;
+}
+
+// ─── Event handlers ───────────────────────────────────────
+function bindEvents() {}
+
+async function approveIaC(id, ticketId) {
+  approved.add(id);
+  showToast('✅ Approved — triggering Terraform apply...');
+  if (config.n8nUrl) {
+    await triggerAgent('approve-iac', { approvalId: id, ticketId, approvedBy: 'prakhar' });
+  }
+  setTimeout(() => { showToast('🚀 Terraform applied — DB is live'); render(); }, 2000);
+}
+
+function rejectIaC(id) {
+  approved.add(id);
+  showToast('✗ Rejected — ticket updated');
+  render();
+}
+
+async function triggerCPU() {
+  const server = document.getElementById('t-server')?.value || 'ad-srv-07';
+  const cpu = parseInt(document.getElementById('t-cpu')?.value || '94');
+  showToast('⚡ Sending CPU alert to n8n...');
+  const ok = await triggerAgent('cpu-alert', { serverName: server, cpuPercent: cpu });
+  if (ok) showToast(`✅ Agent triggered — check Slack for results`);
+}
+
+async function triggerIaC() {
+  const ticketId = document.getElementById('t-ticket')?.value || 'JIRA-490';
+  const title = document.getElementById('t-title')?.value || 'New PostgreSQL DB';
+  const by = document.getElementById('t-by')?.value || 'prakhar';
+  showToast('📋 Sending IaC ticket to n8n...');
+  const ok = await triggerAgent('iac-request', { ticketId, title, requestedBy: by });
+  if (ok) showToast('✅ Terraform generating — check Approvals tab');
+}
+
+async function triggerCleanup() {
+  showToast('🧹 Triggering cleanup scan...');
+  const ok = await triggerAgent('cleanup-now', {});
+  if (ok) showToast('✅ Scan complete — check Cleanup page');
+  else showToast('ℹ️ In production, cron triggers this at 2am');
+}
+
+// ─── Boot ─────────────────────────────────────────────────
+render();
+if (!config.n8nUrl) setTimeout(openConfig, 800);
+</script>
+</body>
+</html>
